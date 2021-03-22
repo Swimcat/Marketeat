@@ -5,11 +5,14 @@ import com.imooc.pojo.Users;
 
 import com.imooc.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import tk.mybatis.mapper.entity.Example;
 
 
+@Service
 public class UserServiceImpl implements UserService {
 
     @Autowired

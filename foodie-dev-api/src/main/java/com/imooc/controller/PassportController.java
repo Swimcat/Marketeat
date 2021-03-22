@@ -1,4 +1,4 @@
-package controller;
+package com.imooc.controller;
 
 import com.imooc.pojo.Users;
 import com.imooc.service.UserService;
