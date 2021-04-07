@@ -9,6 +9,8 @@ import com.imooc.mapper.UserAddressMapper;
 import com.imooc.pojo.*;
 import com.imooc.pojo.bo.AddressBO;
 import com.imooc.pojo.bo.SubmitOrderBO;
+import com.imooc.pojo.vo.MerchantOrdersVO;
+import com.imooc.pojo.vo.OrderVO;
 import com.imooc.service.AddressService;
 import com.imooc.service.ItemService;
 import com.imooc.service.OrderService;
@@ -50,7 +52,7 @@ public class OrderServiceImpl implements OrderService {
     private UserAddressMapper userAddressMapper;
 
     @Override
-    public String createOrder(SubmitOrderBO submitOrderBO) {
+    public OrderVO createOrder(SubmitOrderBO submitOrderBO) {
         String userId = submitOrderBO.getUserId();
         String addressId = submitOrderBO.getAddressId();
         String itemSpecIds = submitOrderBO.getItemSpecIds();
@@ -89,15 +91,15 @@ public class OrderServiceImpl implements OrderService {
         String itemSpecIdArr[] = itemSpecIds.split(",");
         Integer totalAmout = 0; //商品原始的价格
         Integer realPayAmount = 0; //优惠后的实际价格
-        for (String itemSpecId : itemSpecIdArr){
+        for (String itemSpecId : itemSpecIdArr) {
 
             //TODO 整合redis后，商品购买的数量重新从redis的购物车中获得
             int buyCounts = 1;
 
             //2.1 根据规格id，查询规格的具体信息
             ItemsSpec itemsSpec = itemService.queryItemSpecById(itemSpecId);
-            totalAmout += itemsSpec.getPriceNormal()*buyCounts;
-            realPayAmount += itemsSpec.getPriceDiscount() *buyCounts;
+            totalAmout += itemsSpec.getPriceNormal() * buyCounts;
+            realPayAmount += itemsSpec.getPriceDiscount() * buyCounts;
 
             //2.2 根据商品id，获取商品信息以及商品图片
             String itemId = itemsSpec.getItemId();
@@ -119,16 +121,14 @@ public class OrderServiceImpl implements OrderService {
             orderItemsMapper.insert(subOrderItem);
 
             //2.4 在用户提交订单以后，规格表中需要扣除库存
-            itemService.decreaseItemSpecStock(itemSpecId,buyCounts);
+            itemService.decreaseItemSpecStock(itemSpecId, buyCounts);
         }
 
-
-
         //商品的价格
-            newOrder.setTotalAmount(totalAmout);
+        newOrder.setTotalAmount(totalAmout);
         //真实的价格
-            newOrder.setRealPayAmount(realPayAmount);
-            ordersMapper.insert(newOrder);
+        newOrder.setRealPayAmount(realPayAmount);
+        ordersMapper.insert(newOrder);
 
         //3保存订单状态表
         OrderStatus waitPayOrderSatus = new OrderStatus();
@@ -138,7 +138,19 @@ public class OrderServiceImpl implements OrderService {
         waitPayOrderSatus.setCreatedTime(new Date());
         orderStatusMapper.insert(waitPayOrderSatus);
 
-        return orderId;
+        // 4.构建商户订单，用于传给支付中心
+        MerchantOrdersVO merchantOrdersVO = new MerchantOrdersVO();
+        merchantOrdersVO.setMerchantOrderId(orderId);
+        merchantOrdersVO.setMerchantUserId(userId);
+        merchantOrdersVO.setAmount(realPayAmount + postAmount);
+        merchantOrdersVO.setPayMethod(payMethod);
+
+        //5.构建自定义订单vo
+        OrderVO orderVO = new OrderVO();
+        orderVO.setOrderId(orderId);
+        orderVO.setMerchantOrdersVO(merchantOrdersVO);
+
+        return orderVO;
     }
 
     @Override
