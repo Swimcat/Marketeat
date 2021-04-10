@@ -14,6 +14,7 @@ import com.imooc.pojo.vo.OrderVO;
 import com.imooc.service.AddressService;
 import com.imooc.service.ItemService;
 import com.imooc.service.OrderService;
+import com.imooc.utils.DateUtil;
 import com.imooc.utils.IMOOCJSONResult;
 import io.swagger.models.auth.In;
 import org.aspectj.weaver.ast.Or;
@@ -51,6 +52,7 @@ public class OrderServiceImpl implements OrderService {
     @Autowired
     private UserAddressMapper userAddressMapper;
 
+    @Transactional(propagation = Propagation.REQUIRED)
     @Override
     public OrderVO createOrder(SubmitOrderBO submitOrderBO) {
         String userId = submitOrderBO.getUserId();
@@ -153,6 +155,7 @@ public class OrderServiceImpl implements OrderService {
         return orderVO;
     }
 
+    @Transactional(propagation = Propagation.REQUIRED)
     @Override
     public void updateOrderStatus(String orderId, Integer orderSatus) {
         OrderStatus paidStatus = new OrderStatus();
@@ -162,5 +165,42 @@ public class OrderServiceImpl implements OrderService {
 
         orderStatusMapper.updateByPrimaryKeySelective(paidStatus);
 
+    }
+
+    @Transactional(propagation = Propagation.REQUIRED)
+    @Override
+    public OrderStatus queryOrderStatusInfo(String orderId) {
+        return orderStatusMapper.selectByPrimaryKey(orderId);
+    }
+
+    @Transactional(propagation = Propagation.SUPPORTS)
+    //关闭超时未支付订单
+    @Override
+    public void closeOrder() {
+
+        //查询所有未付款订单，判断是否超时（1天），超时则关闭交易
+        OrderStatus queryOrder = new OrderStatus();
+        queryOrder.setOrderStatus(OrderStatusEnum.WAIT_PAY.type);
+        List<OrderStatus> list = orderStatusMapper.select(queryOrder);
+        for (OrderStatus os : list){
+            // 获得订单创建时间
+            Date createdTime = os.getCreatedTime();
+            //和当前时间进行对比
+            int days = DateUtil.daysBetween(createdTime,new Date());
+            if (days >=1){
+                //超过一天，关闭订单
+                doCloseOrder(os.getOrderId());
+            }
+        }
+
+    }
+
+    @Transactional(propagation = Propagation.REQUIRED)
+    void doCloseOrder(String orderId){
+        OrderStatus close = new OrderStatus();
+        close.setOrderId(orderId);
+        close.setOrderStatus(OrderStatusEnum.CLOSE.type);
+        close.setCloseTime(new Date());
+        orderStatusMapper.updateByPrimaryKeySelective(close);
     }
 }
